@@ -9,7 +9,7 @@ import Data.Ord(comparing)
 import Data.Monoid
 
 -- | Word pair and its count.
-type PairCount = (String, String, Integer)
+type PairCount = (String, String, Int)
 
 from :: PairCount -> String
 from (f, _, _) = f
@@ -17,7 +17,7 @@ from (f, _, _) = f
 to :: PairCount -> String
 to (_, t, _) = t
 
-count :: PairCount -> Integer
+count :: PairCount -> Int
 count (_, _, c) = c
 
 -- | Express 'PairCount' as a 'String'.
@@ -53,10 +53,10 @@ printPairCounts :: [PairCount] -> IO ()
 printPairCounts counts = mapM_ (putStrLn . showContent) $ take 10 counts
 
 -- | Generate a sentence with a starting word.
-generate :: String -> Integer -> [PairCount] -> [String]
+generate :: String -> Int -> [PairCount] -> [String]
 generate start num counts = start : generate' start num counts
 
-generate' :: String -> Integer -> [PairCount] -> [String]
+generate' :: String -> Int -> [PairCount] -> [String]
 generate' word num counts = case num of
   0 -> []
   _ -> case filter (matchFrom word) counts of

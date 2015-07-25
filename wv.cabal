@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Bigram, Huffman
+  exposed-modules:     Bigram, Huffman, Vocabulary
   build-depends:       base >= 4.7 && < 5
                      , unordered-containers
                      , hashable
@@ -33,6 +33,8 @@ test-suite wv-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:       HuffmanSpec
+                     , VocabularySpec
   build-depends:       base
                      , wv
                      , hspec ==2.1.8
