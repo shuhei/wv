@@ -7,9 +7,10 @@ module Vocabulary
     , buildModel
     ) where
 
+import Data.List (foldl')
 import qualified Data.HashMap.Strict as H (HashMap, empty, insert, lookup)
 
--- TODO: Use `Vector` or other efficient data structure if necessary.
+-- TODO: Use `Sequence` or other efficient data structure if necessary.
 
 -- | A sentence is a list of words.
 type Sentence = [String]
@@ -25,21 +26,17 @@ type Index2Word = H.HashMap Int String
 -- | Vocabulary, index to word and current vocabulary size.
 type Model = (Vocabulary, Index2Word, Int)
 
--- TODO: Can a `List` be concatenated lazily? If so, do it.
 -- | Build a model from sentences.
 buildModel :: [Sentence] -> Model
-buildModel sentences = buildModel' sentences (H.empty, H.empty, 0)
-  where buildModel' [] m     = m
-        buildModel' (s:ss) m = buildModel' ss $ addWords s m
+buildModel = foldl' addWords (H.empty, H.empty, 0)
 
 -- Add words to a model.
-addWords :: [String] -> Model -> Model
-addWords [] m     = m
-addWords (w:ws) m = addWords ws $ addWord w m
+addWords :: Model -> [String] -> Model
+addWords = foldl' addWord
 
 -- Add a word to a model.
 -- O(log(voc size))
-addWord :: String -> Model -> Model
-addWord word (voc, i2w, n) = case H.lookup word voc of
+addWord :: Model -> String -> Model
+addWord (voc, i2w, n) word = case H.lookup word voc of
   Nothing       -> (H.insert word (n, 1) voc, H.insert n word i2w, n + 1)
   Just (idx, c) -> (H.insert word (idx, c + 1) voc, i2w, n)

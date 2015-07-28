@@ -1,14 +1,20 @@
 module Main where
 
-import Bigram
-import System.Environment
+import Word2Vec
+
+import System.Environment (getArgs)
 
 main :: IO ()
 main = do
-  counts <- fmap countPairs getContents
-  printPairCounts counts
-  putStrLn "------------"
   args <- getArgs
+  mapM_ putStrLn args
   case args of
-    [] -> putStrLn "Specify starting word."
-    start : _ -> mapM_ putStrLn $ generate start 10 counts
+    "train" : path : _ -> trainWith path
+    _ -> showHelp
+
+showHelp :: IO ()
+showHelp = do
+  putStrLn "usage: wv <command> [<args>]"
+  putStrLn ""
+  putStrLn "  train <file path>    Train matrices and save them as files"
+  putStrLn ""

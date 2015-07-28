@@ -10,6 +10,10 @@ data Code = L
           | R
           deriving (Show, Eq, Ord)
 
+direction :: Code -> Double
+direction L = 1
+direction R = 0
+
 -- | Code of Huffman coding and path from the root.
 data Encoded = Encoded
              { code  :: [Code]
@@ -41,7 +45,7 @@ merge i left right = Branch left right i (weight left + weight right)
 -- TODO: Is this fast enough with `insertBy`? If not, try `Heap`.
 buildTree :: [(a, Int)] -> Tree a
 buildTree = build 0 . map (uncurry Leaf) . sortBy (comparing snd)
-  where build _ (t:[])     = t
+  where build _ ([t])      = t
         build i (t1:t2:ts) = build (i + 1) $ insertBy (comparing weight) (merge i t1 t2) ts
 
 -- | Create a hash map of word as key and ??? as value from a tree.
@@ -54,3 +58,10 @@ encodeTree tree = encode tree [] [] empty
 encode :: (Eq a, Hashable a) => Tree a -> [Code] -> [Int] -> HashMap a Encoded -> HashMap a Encoded
 encode (Leaf a _) c p hm               = insert a Encoded { code = c, point = p } hm
 encode (Branch left right i _) c p map = encode left (c ++ [L]) (p ++ [i]) map `union` encode right (c ++ [R]) (p ++ [i]) empty
+
+-- | Calculate probability for a leaf and probabilities on its path.
+softmax :: Encoded -> [Double] -> Double
+softmax (Encoded codes _) ps = softmax' codes ps 1.0
+  where softmax' [] [] prob = prob
+        softmax' (L:cs) (p:ps) prob = softmax' cs ps $ prob * p
+        softmax' (R:cs) (p:ps) prob = softmax' cs ps $ prob * (1.0 - p)

@@ -17,7 +17,7 @@ sampleSentences = map words $
 
 spec :: Spec
 spec = do
-  describe"buildModel" $ do
+  describe "buildModel" $ do
     it "builds a model" $ do
       (voc, i2w, n) <- return $ buildModel sampleSentences
       n `shouldBe` 89

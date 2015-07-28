@@ -8,6 +8,17 @@ import Data.List
 import Data.Ord(comparing)
 import Data.Monoid
 
+-- # Example
+-- main :: IO ()
+-- main = do
+--   counts <- fmap countPairs getContents
+--   printPairCounts counts
+--   putStrLn "------------"
+--   args <- getArgs
+--   case args of
+--     [] -> putStrLn "Specify starting word."
+--     start : _ -> mapM_ putStrLn $ generate start 10 counts
+
 -- | Word pair and its count.
 type PairCount = (String, String, Int)
 
@@ -39,14 +50,14 @@ add bag (f, t) = case partition (matchPair f t) bag of
 
 -- | Order 'PairCount' by count, from and to.
 cmp :: PairCount -> PairCount -> Ordering
-cmp = flip (comparing count) `mappend` (comparing from) `mappend` (comparing to)
+cmp = flip (comparing count) `mappend` comparing from `mappend` comparing to
 
 -- | Count word pairs in a text.
 countPairs :: String -> [PairCount]
 countPairs str =
   let ws = words str in
   let wws = zip ws $ tail ws in
-  sortBy cmp $ foldl add [] $ wws
+  sortBy cmp $ foldl' add [] wws
 
 -- | Print '[PairCount]' to the console.
 printPairCounts :: [PairCount] -> IO ()
