@@ -24,6 +24,7 @@ library
                      , unordered-containers
                      , hashable
                      , hmatrix
+                     , random
   default-language:    Haskell2010
 
 executable wv-exe

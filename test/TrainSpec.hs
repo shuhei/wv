@@ -9,7 +9,7 @@ shouldBeBetween x (min, max) =
   x `shouldSatisfy` \x -> min <= x && x <= max
 
 spec :: Spec
-spec =
+spec = do
   describe "sigmoid" $ do
     it "is 1/2 for 0" $
       sigmoid 0 `shouldBe` 0.5
@@ -20,3 +20,10 @@ spec =
     it "fits in range from 0 to 1" $ do
       sigmoid 10000 `shouldBeBetween` (0.9999, 1)
       sigmoid (-10000) `shouldBeBetween` (0, 0.0001)
+
+  describe "skipgrams" $ do
+    it "returns skipgrams" $
+      skipgrams 2 [1..5] `shouldBe` [(1, [2, 3]), (2, [1, 3, 4]), (3, [1, 2, 4, 5]), (4, [2, 3, 5]), (5, [3, 4])]
+
+    it "works with an infinite list" $
+      take 3 (skipgrams 2 [0..]) `shouldBe` [(0, [1, 2]), (1, [0, 2, 3]), (2, [0, 1, 3, 4])]
