@@ -20,6 +20,7 @@ library
                      , Vocabulary
                      , Train
                      , Word2Vec
+                     , Persistence
   build-depends:       base >= 4.7 && < 5
                      , unordered-containers
                      , hashable

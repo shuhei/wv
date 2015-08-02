@@ -104,7 +104,7 @@ updateRows mat delta rowIndices = runSTMatrix $ do
 sigmoid :: Double -> Double
 sigmoid x = 1 / (1 + exp (-x))
 
--- TODO: Randomize the window size.
+-- TODO: Randomize the window size (1..size).
 -- | Return skipgram pairs from a list.
 skipgrams :: Int -> [a] -> [(a, [a])]
 skipgrams size = skipgrams' size []
