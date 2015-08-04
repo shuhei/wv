@@ -8,7 +8,7 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    "train" : path : _ -> trainWith path
+    "train" : path : num : _ -> trainWith path $ read num
     "most-similar" : words@(w:ws) -> mostSimilar words
     _ -> showHelp
 

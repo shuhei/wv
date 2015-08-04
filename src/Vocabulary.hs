@@ -7,10 +7,9 @@ module Vocabulary
     , buildModel
     ) where
 
+import Debug.Trace (trace)
 import Data.List (foldl')
 import qualified Data.HashMap.Strict as H (HashMap, empty, insert, lookup)
-
--- TODO: Use `Sequence` or other efficient data structure if necessary.
 
 -- | A sentence is a list of words.
 type Sentence = [String]

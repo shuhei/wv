@@ -43,6 +43,7 @@ test-suite wv-test
   other-modules:       HuffmanSpec
                      , VocabularySpec
                      , TrainSpec
+                     , Word2VecSpec
   build-depends:       base
                      , wv
                      , hspec ==2.1.8

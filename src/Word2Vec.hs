@@ -1,5 +1,8 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Word2Vec ( trainWith
                 , mostSimilar
+                , groupOf
                 ) where
 
 import Vocabulary
@@ -24,19 +27,21 @@ i2wFile = "i2w.txt"
 w2iFile = "w2i.txt"
 
 -- | Train input-hidden weight matrix with sentences from a file.
-trainWith :: FilePath -> IO ()
-trainWith path = do
-  sentences <- readSentences path
+trainWith :: FilePath -> Int -> IO ()
+trainWith path num = do
+  sentences <- take num <$> readGiganticLine path
 
   randGen <- getStdGen
-  let (voc, i2w, vocSize) = buildModel sentences
-      coding = encodeTree $ buildTree $ map snd $ HM.toList voc
-      matrices = buildMatrices randGen vocSize
-      (i2h, h2o) = train voc coding matrices sentences
+  let (vocabulary, i2w, vocSize) = buildModel sentences
+      huffman = encodeTree $ buildTree $ map snd $ HM.toList vocabulary
+      vectorSize = 100
+      matrices = buildMatrices randGen vocSize vectorSize
+      config = Configuration {vocabulary, huffman, learningRate=0.025, vectorSize}
+      (i2h, h2o) = train config matrices sentences
 
   saveMatrix i2hFile "%g" i2h
   saveI2W i2wFile i2w
-  saveW2I w2iFile voc
+  saveW2I w2iFile vocabulary
 
 mostSimilar :: [String] -> IO ()
 mostSimilar [] = putStrLn "Specify words."
@@ -103,8 +108,17 @@ magnitude' v = if mag == 0 then 1 else mag
 readSentences :: FilePath -> IO [Sentence]
 readSentences path = do
   contents <- readFile path
-  {- return $ map words $ lines contents -}
-  return $ take 1000000 $ map words $ lines contents
+  return $ map words $ lines contents
+
+-- | Read a gigantic line and split it into sentences by each 1000 words.
+readGiganticLine :: FilePath -> IO [Sentence]
+readGiganticLine path = do
+  contents <- readFile path
+  return $ groupOf 100 $ words contents
+
+groupOf :: Int -> [a] -> [[a]]
+groupOf _ [] = []
+groupOf n xs = (\(f, s) -> f : groupOf n s) $ splitAt n xs
 
 saveI2W :: FilePath -> Index2Word -> IO ()
 saveI2W = saveHashMap (\(i, w) -> show i ++ " " ++ w)

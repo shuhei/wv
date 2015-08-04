@@ -1,4 +1,7 @@
-module Train ( train
+{-# LANGUAGE NamedFieldPuns, RecordWildCards, RankNTypes #-}
+
+module Train ( Configuration(..)
+             , train
              , buildMatrices
              , sigmoid
              , skipgrams
@@ -7,98 +10,104 @@ module Train ( train
 import Huffman
 import Vocabulary
 
-import Debug.Trace (trace)
 import Prelude hiding (lookup)
+import Control.Monad.ST (ST, runST)
+import Control.Monad.ST.Unsafe (unsafeIOToST)
+import Control.Arrow ((***))
 import Data.List (foldl')
 import Data.Maybe (fromJust)
 import Data.HashMap.Strict (HashMap, lookup)
+import Foreign.Storable (Storable)
 import Numeric.LinearAlgebra.Data (Matrix, Vector, (><), (!), (?), toList, asRow, cmap, size)
 import Numeric.LinearAlgebra.HMatrix (app, mul, fromList, scale, outer)
-import Numeric.LinearAlgebra.Devel (runSTMatrix, thawMatrix, writeMatrix, modifyMatrix, mapVectorWithIndexM_, mapMatrixWithIndexM_)
+import Numeric.LinearAlgebra.Devel (STMatrix (..), runSTMatrix, thawMatrix, writeMatrix, modifyMatrix, mapVectorWithIndexM_, mapMatrixWithIndexM_, unsafeFreezeMatrix, freezeMatrix)
 import System.Random (RandomGen, randomRs)
+
+data Configuration = Configuration
+                   { vocabulary :: Vocabulary
+                   , huffman :: HashMap Int Encoded
+                   , learningRate :: Double
+                   , vectorSize :: Int
+                   } deriving (Show)
 
 -- | Weight matrix of input to hidden and hidden to output.
 type WeightMatrix = (Matrix Double, Matrix Double)
-
--- TODO: Make it configurable.
-vectorSize :: Int
-vectorSize = 100
 
 -- TODO: Bias node/row?
 -- | Build a weight motrix with a model.
 -- | - input to hidden: Voc x Vec
 -- | - hidden to output: Vec x (Voc - 1)
-buildMatrices :: RandomGen g => g -> Int -> WeightMatrix
-buildMatrices g vocSize =
-  let i2h = (vocSize >< vectorSize) [0, 0..]
+buildMatrices :: RandomGen g => g -> Int -> Int -> WeightMatrix
+buildMatrices g vocSize vecSize =
+  let i2h = (vocSize >< vecSize) [0, 0..]
       -- h2o is transposed.
-      -- TODO: Use 'RandDist' to fill the initial weight matrices with random values.
       bound = 0.5 / fromIntegral vocSize
-      h2o = ((vocSize - 1) >< vectorSize) $ randomRs (-bound, bound) g
+      h2o = ((vocSize - 1) >< vecSize) $ randomRs (-bound, bound) g
   in (i2h, h2o)
 
 -- | Train a weight matrix with sentences.
-train :: Vocabulary
-      -> HashMap Int Encoded
+train :: Configuration
       -> WeightMatrix
       -> [Sentence]
       -> WeightMatrix
--- TODO: Make the learning rate configurable.
-train voc huffman = foldl' $ trainSentence 0.025 voc huffman
+train config (i2h, h2o) sentences = runSTMatrices $ do
+  si2h <- thawMatrix i2h
+  sh2o <- thawMatrix h2o
+  mapM_ (trainSentence config (si2h, sh2o)) sentences
+  return (si2h, sh2o)
 
 -- | Train a weight matrix with a sentence.
-trainSentence :: Double
-              -> Vocabulary
-              -> HashMap Int Encoded
-              -> WeightMatrix
+trainSentence :: Configuration
+              -> (STMatrix s Double, STMatrix s Double)
               -> Sentence
-              -> WeightMatrix
-trainSentence rate voc huffman matrices sentence =
-  let indices = map (fst . fromJust . (`lookup` voc)) sentence
-  in foldl' (trainSkipgram huffman rate) matrices $ skipgrams 5 indices
+              -> ST s ()
+trainSentence config@(Configuration {vocabulary, ..}) matrices sentence = do
+  let indices = map (fst . fromJust . (`lookup` vocabulary)) sentence
+  mapM_ (trainSkipgram config matrices) $ skipgrams 5 indices
 
-trainSkipgram :: HashMap Int Encoded
-              -> Double
-              -> WeightMatrix
+trainSkipgram :: Configuration
+              -> (STMatrix s Double, STMatrix s Double)
               -> (Int, [Int])
-              -> WeightMatrix
-trainSkipgram huffman rate matrices (inputIndex, outputIndices) =
-  foldl' (trainPair huffman rate inputIndex) matrices outputIndices
+              -> ST s ()
+trainSkipgram config matrices (inputIndex, outputIndices) =
+  mapM_ (trainPair config matrices inputIndex) outputIndices
 
-trainPair :: HashMap Int Encoded -- Huffman coding.
-          -> Double -- Learning rate.
-          -> Int -- Input word's index in the input layer.
-          -> WeightMatrix -- Old matrices.
-          -> Int -- Output word's index in the output layer.
-          -> WeightMatrix
-trainPair huffman rate inputIndex (i2h, h2o) outputIndex =
+trainPair :: Configuration  -- ^ Configuration for training.
+          -> (STMatrix s Double, STMatrix s Double) -- ^ Old matrices.
+          -> Int            -- ^ Input word's index in the input layer.
+          -> Int            -- ^ Output word's index in the output layer.
+          -> ST s ()
+trainPair Configuration {huffman, learningRate, ..} (si2h, sh2o) inputIndex outputIndex = do
   -- HACK: Using `lookup` because `!` is reserved for `Matrix`.
   let encoded = fromJust $ lookup outputIndex huffman
+  -- TODO: Guessing `unsafeFreezeMatrix` doesn't create a new matrix...
+  i2h <- unsafeFreezeMatrix si2h
+  h2o <- unsafeFreezeMatrix sh2o
       -- TODO: No activate function for the hidden layer?
       -- Vector: vectorSize
-      hidden = i2h ! inputIndex
+  let hidden = i2h ! inputIndex
+      -- TODO: This seems to be slow because it's O(vocSize) and copies a new matrix.
+      -- TODO: Create `unsafe?` or something.
       -- Matrix: (L(w) - 1 >< vectorSize)
       wo = h2o ? point encoded
       -- Vector: L(w) - 1
       idealOutputs = fromList $ map direction $ code encoded
       -- Vector: L(w) - 1
       errors = cmap sigmoid (app wo hidden) - idealOutputs
-      -- Update hidden to output matrix.
-      -- TODO: Is `transpose $ outer hidden errors` same as `outer errors hidden`?
-      deltaH2O = - rate `scale` (errors `outer` hidden)
-      -- h2o is transposed.
-      newH2O = updateRows h2o deltaH2O $ point encoded
-      -- Update input to hidden matrix.
-      deltaI2H = - rate `scale` (asRow errors `mul` wo)
-      newI2H = updateRows i2h deltaI2H [inputIndex]
-  in (newI2H, newH2O)
+      -- Calculate deltas to update weight matrices.
+  -- TODO: Does separated `let` in `do` strictly calculate the result?
+  let deltaH2O = - learningRate `scale` (errors `outer` hidden)
+  let deltaI2H = - learningRate `scale` (asRow errors `mul` wo)
 
-updateRows :: Matrix Double -> Matrix Double -> [Int] -> Matrix Double
-updateRows mat delta rowIndices = runSTMatrix $ do
-  {- m <- trace ("delta size: " ++ show (size delta) ++ " mat size: " ++ show (size mat)) $ thawMatrix mat -}
-  m <- thawMatrix mat
-  mapMatrixWithIndexM_ (\(i, j) d -> modifyMatrix m  (rowIndices !! i) j (+ d)) delta
-  return m
+  updateRows sh2o deltaH2O $ point encoded
+  updateRows si2h deltaI2H [inputIndex]
+
+updateRows :: STMatrix s Double
+           -> Matrix Double
+           -> [Int]
+           -> ST s ()
+updateRows mat delta rowIndices = mapMatrixWithIndexM_ modify delta
+  where modify (i, j) d = modifyMatrix mat  (rowIndices !! i) j (+ d)
 
 -- | Sigmoid function.
 sigmoid :: Double -> Double
@@ -112,3 +121,12 @@ skipgrams size = skipgrams' size []
   where skipgrams' size prev [] = []
         skipgrams' size prev (x:xs) =
           (x, reverse (take size prev) ++ take size xs) : skipgrams' size (x:prev) xs
+
+runSTMatrices :: (Storable t1, Storable t2)
+              => (forall s. ST s (STMatrix s t1, STMatrix s t2))
+              -> (Matrix t1, Matrix t2)
+runSTMatrices st = runST $ do
+  (sm1, sm2) <- st
+  m1 <- unsafeFreezeMatrix sm1
+  m2 <- unsafeFreezeMatrix sm2
+  return (m1, m2)
