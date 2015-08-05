@@ -2,7 +2,8 @@ module VocabularySpec where
 
 import Test.Hspec
 import Vocabulary
-import Data.HashMap.Strict ((!), empty)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.IntMap.Strict as IM
 
 sampleSentences :: [Sentence]
 sampleSentences = map words $
@@ -16,12 +17,12 @@ sampleSentences = map words $
   ]
 
 spec :: Spec
-spec = do
-  describe "buildModel" $ do
+spec =
+  describe "buildModel" $
     it "builds a model" $ do
       (voc, i2w, n) <- return $ buildModel sampleSentences
       n `shouldBe` 89
-      voc ! "haskell" `shouldBe` (0, 2)
-      voc ! "functional" `shouldBe` (6, 5)
-      i2w ! 0 `shouldBe` "haskell"
-      i2w ! 6 `shouldBe` "functional"
+      voc HM.! "haskell" `shouldBe` (0, 2)
+      voc HM.! "functional" `shouldBe` (6, 5)
+      i2w IM.! 0 `shouldBe` "haskell"
+      i2w IM.! 6 `shouldBe` "functional"

@@ -15,6 +15,7 @@ import Numeric.LinearAlgebra.Data (Matrix, Vector, loadMatrix, saveMatrix, cmap,
 import qualified Numeric.LinearAlgebra.HMatrix as M
 import qualified Numeric.LinearAlgebra.Devel as DV
 import qualified Data.HashMap.Strict as HM
+import qualified Data.IntMap.Strict as IM
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Foldable (fold)
@@ -51,7 +52,7 @@ mostSimilar words = do
   w2i <- loadW2I w2iFile
   mapM_ print $ take 5 $ findMostSimilar i2w w2i i2h words
 
-findMostSimilar :: HM.HashMap Int String
+findMostSimilar :: IM.IntMap String
                 -> HM.HashMap String Int
                 -> Matrix Double
                 -> [String]
@@ -61,7 +62,7 @@ findMostSimilar i2w w2i i2h words = filter ((`notElem` nakedWords) . fst) simila
         nakedWords = map fst weightedWords
         similarities = M.toList $ M.app i2h (wordsMean w2i i2h weightedWords)
         indexSimilarities = sortBy (flip $ comparing snd) $ zip [0..] similarities
-        similarWords = map (first (i2w HM.!)) indexSimilarities
+        similarWords = map (first (i2w IM.!)) indexSimilarities
 
 -- | Normalized mean vector for multiple words.
 wordsMean :: HM.HashMap String Int -> Matrix Double -> [(String, Double)] -> Vector Double
@@ -121,13 +122,13 @@ groupOf _ [] = []
 groupOf n xs = (\(f, s) -> f : groupOf n s) $ splitAt n xs
 
 saveI2W :: FilePath -> Index2Word -> IO ()
-saveI2W = saveHashMap (\(i, w) -> show i ++ " " ++ w)
+saveI2W = saveIntMap (\(i, w) -> show i ++ " " ++ w)
 
 saveW2I :: FilePath -> Vocabulary -> IO ()
 saveW2I = saveHashMap (\(w, (i, _)) -> w ++ " " ++ show i)
 
 loadI2W :: FilePath -> IO Index2Word
-loadI2W = loadHashMap (\(i:w:_) -> (read i, w))
+loadI2W = loadIntMap (\(i:w:_) -> (read i, w))
 
 loadW2I :: FilePath -> IO (HM.HashMap String Int)
 loadW2I = loadHashMap (\(w:i:_) -> (w, read i))

@@ -2,8 +2,8 @@ module Huffman where
 
 import Data.List (insertBy, sortBy)
 import Data.Ord (comparing)
-import Data.HashMap.Strict (HashMap, empty, insert, union)
 import Data.Hashable
+import qualified Data.IntMap.Strict as IM
 
 -- | Left or Right.
 data Code = L
@@ -48,16 +48,16 @@ buildTree = build 0 . map (uncurry Leaf) . sortBy (comparing snd)
   where build _ ([t])      = t
         build i (t1:t2:ts) = build (i + 1) $ insertBy (comparing weight) (merge i t1 t2) ts
 
--- | Create a hash map of word as key and ??? as value from a tree.
-encodeTree :: (Eq a, Hashable a) => Tree a -> HashMap a Encoded
-encodeTree tree = encode tree [] [] empty
+-- | Create an int map of word index as key and codes and points as value from a tree.
+encodeTree :: Tree Int -> IM.IntMap Encoded
+encodeTree tree = encode tree [] [] IM.empty
 
 -- | Merge a tree into a hash map with codes and points.
 -- TODO: Is `c ++ [L]` slow if `c` is huge? If yes, use `Sequence` instead of `List`.
 -- Or code can be in reverse order.
-encode :: (Eq a, Hashable a) => Tree a -> [Code] -> [Int] -> HashMap a Encoded -> HashMap a Encoded
-encode (Leaf a _) c p hm               = insert a Encoded { code = c, point = p } hm
-encode (Branch left right i _) c p map = encode left (c ++ [L]) (p ++ [i]) map `union` encode right (c ++ [R]) (p ++ [i]) empty
+encode :: Tree Int -> [Code] -> [Int] -> IM.IntMap Encoded -> IM.IntMap Encoded
+encode (Leaf a _) c p hm               = IM.insert a Encoded { code = c, point = p } hm
+encode (Branch left right i _) c p map = encode left (c ++ [L]) (p ++ [i]) map `IM.union` encode right (c ++ [R]) (p ++ [i]) IM.empty
 
 -- | Calculate probability for a leaf and probabilities on its path.
 softmax :: Encoded -> [Double] -> Double

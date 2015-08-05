@@ -16,7 +16,8 @@ import Control.Monad.ST.Unsafe (unsafeIOToST)
 import Control.Arrow ((***))
 import Data.List (foldl')
 import Data.Maybe (fromJust)
-import Data.HashMap.Strict (HashMap, lookup)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.IntMap.Strict as IM
 import Foreign.Storable (Storable)
 import Numeric.LinearAlgebra.Data (Matrix, Vector, (><), (!), (?), toList, asRow, cmap, size)
 import Numeric.LinearAlgebra.HMatrix (app, mul, fromList, scale, outer)
@@ -25,7 +26,7 @@ import System.Random (RandomGen, randomRs)
 
 data Configuration = Configuration
                    { vocabulary :: Vocabulary
-                   , huffman :: HashMap Int Encoded
+                   , huffman :: IM.IntMap Encoded
                    , learningRate :: Double
                    , vectorSize :: Int
                    } deriving (Show)
@@ -62,7 +63,7 @@ trainSentence :: Configuration
               -> Sentence
               -> ST s ()
 trainSentence config@(Configuration {vocabulary, ..}) matrices sentence = do
-  let indices = map (fst . fromJust . (`lookup` vocabulary)) sentence
+  let indices = map (fst . fromJust . (`HM.lookup` vocabulary)) sentence
   mapM_ (trainSkipgram config matrices) $ skipgrams 5 indices
 
 trainSkipgram :: Configuration
@@ -79,7 +80,7 @@ trainPair :: Configuration  -- ^ Configuration for training.
           -> ST s ()
 trainPair Configuration {huffman, learningRate, ..} (si2h, sh2o) inputIndex outputIndex = do
   -- HACK: Using `lookup` because `!` is reserved for `Matrix`.
-  let encoded = fromJust $ lookup outputIndex huffman
+  let encoded = fromJust $ IM.lookup outputIndex huffman
   -- TODO: Guessing `unsafeFreezeMatrix` doesn't create a new matrix...
   i2h <- unsafeFreezeMatrix si2h
   h2o <- unsafeFreezeMatrix sh2o
